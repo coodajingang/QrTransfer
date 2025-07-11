@@ -1,3 +1,4 @@
+from collections import deque
 from PyQt5.QtWidgets import QMainWindow, QFileDialog, QLineEdit, QDialog, QPushButton, QSpinBox, QLabel, QVBoxLayout, QHBoxLayout, QWidget, QTabWidget, QTextEdit, QGridLayout, QMessageBox
 from PyQt5.QtCore import QTimer, QRect, QPoint, Qt
 from data_transfer import send_file
@@ -20,6 +21,10 @@ import zlib
 from file_handler import decompress_data
 from recognition_thread import RecognitionThread
 from param_qr import TransferParams
+import pyperclip
+import json
+
+from timed_deque import TimedDeque
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -56,9 +61,7 @@ class MainWindow(QMainWindow):
         self.segment_size_input.setMaximum(999999)
         self.segment_size_input.setValue(200)
 
-        # 二维码选择框 rect 数据 
-        self.monitor_qr_btn = QPushButton("选择二维码框")
-        self.monitor_qr_btn.clicked.connect(self.select_qr_area)   
+        # 二维码选择框 rect 数据  
         self.monitor_qr_label = QLabel()
         self.monitor_qr_label.setText("x/y/width/height")
         # self.qr_rect_x = 0
@@ -89,7 +92,16 @@ class MainWindow(QMainWindow):
         hbox.addWidget(self.qr_rect_y_input)
         hbox.addWidget(self.qr_rect_width_input)
         hbox.addWidget(self.qr_rect_height_input)
-        hbox.addWidget(self.monitor_qr_btn)
+        #hbox.addWidget(self.monitor_qr_btn)
+
+        # action hbox 
+        self.monitor_qr_process_label = QLabel()
+        self.monitor_qr_process_label.setText("-/-")
+        self.monitor_qr_range_label = QLabel()
+        self.monitor_qr_range_label.setText("[:]")
+        action_hbox = QHBoxLayout() 
+        #action_hbox.addWidget(self.monitor_qr_range_label)
+        #action_hbox.addWidget(self.monitor_qr_process_label)
 
         # preview label
         self.monitor_qr_preview_label = QLabel()
@@ -105,37 +117,31 @@ class MainWindow(QMainWindow):
         self.qr3_process = 0
         self.qr4_process = 0
 
-        self.monitor_qr_process_label = QLabel()
+        
         self.monitor_qr1_process_label = QLabel()
         self.monitor_qr2_process_label = QLabel()
         self.monitor_qr3_process_label = QLabel()
         self.monitor_qr4_process_label = QLabel()
-
-        self.monitor_qr_process_label.setText("-/-")
         self.monitor_qr1_process_label.setText("-/-")
         self.monitor_qr2_process_label.setText("-/-")
         self.monitor_qr3_process_label.setText("-/-")
         self.monitor_qr4_process_label.setText("-/-")
 
         process_vbox = QVBoxLayout()
-        process_vbox.addWidget(self.monitor_qr_process_label)
         process_vbox.addWidget(self.monitor_qr1_process_label)
         process_vbox.addWidget(self.monitor_qr2_process_label)
         process_vbox.addWidget(self.monitor_qr3_process_label)
         process_vbox.addWidget(self.monitor_qr4_process_label)
 
-        self.monitor_qr_range_label = QLabel()
         self.monitor_qr1_range_label = QLabel()
         self.monitor_qr2_range_label = QLabel()
         self.monitor_qr3_range_label = QLabel()
         self.monitor_qr4_range_label = QLabel()
-        self.monitor_qr_range_label.setText("[:]")
         self.monitor_qr1_range_label.setText("[:]")
         self.monitor_qr2_range_label.setText("[:]")
         self.monitor_qr3_range_label.setText("[:]")
         self.monitor_qr4_range_label.setText("[:]")
         range_vbox = QVBoxLayout()
-        range_vbox.addWidget(self.monitor_qr_range_label)
         range_vbox.addWidget(self.monitor_qr1_range_label)
         range_vbox.addWidget(self.monitor_qr2_range_label)
         range_vbox.addWidget(self.monitor_qr3_range_label)
@@ -163,22 +169,29 @@ class MainWindow(QMainWindow):
 
 
         # 开始和暂停按钮
-        self.start_button = QPushButton("开始")
+        self.start_button = QPushButton("3.开始")
         self.start_button.clicked.connect(self.start_recognition)
         self.pause_button = QPushButton("暂停")
         self.pause_button.clicked.connect(self.pause_recognition)
         self.stop_button = QPushButton("停止")
         self.stop_button.clicked.connect(self.stop_recognition)
-        self.read_sender_param_button = QPushButton("读取发送者参数")
+        self.read_sender_param_button = QPushButton("1.读取发送者参数")
         self.read_sender_param_button.clicked.connect(self.read_sender_params_area)
 
-        vbox_btn = QVBoxLayout()
-        vbox_btn.addWidget(self.read_sender_param_button)
-        vbox_btn.addWidget(self.stop_button)
-        vbox_btn.addWidget(self.pause_button)
-        vbox_btn.addWidget(self.start_button)
+        self.monitor_qr_btn = QPushButton("2.选择二维码框")
+        self.monitor_qr_btn.clicked.connect(self.select_qr_area)  
 
-        preview_hbox.addLayout(vbox_btn)
+        # vbox_btn = QVBoxLayout()
+        action_hbox.addWidget(self.read_sender_param_button)
+        action_hbox.addWidget(self.monitor_qr_btn)
+        action_hbox.addWidget(self.start_button)
+        action_hbox.addWidget(self.pause_button)
+        action_hbox.addWidget(self.stop_button)
+        # vbox_btn.addWidget(self.stop_button)
+        # vbox_btn.addWidget(self.pause_button)
+        # vbox_btn.addWidget(self.start_button)
+
+        #preview_hbox.addLayout(vbox_btn)
 
         # 添加帧率设置
         self.frame_rate_label = QLabel("帧率:")
@@ -221,9 +234,10 @@ class MainWindow(QMainWindow):
         self.layout.addWidget(self.frame_rate_label, 3, 0)
         self.layout.addWidget(self.frame_rate_input, 3, 1)
         self.layout.addLayout(hbox, 4, 0, 1, 3)
-        self.layout.addLayout(preview_hbox, 5, 0, 1, 3)
+        self.layout.addLayout(action_hbox, 5, 0, 1, 3)
+        self.layout.addLayout(preview_hbox, 6, 0, 1, 3)
         #self.layout.addLayout(hbox_btn, 5, 0, 1, 3)
-        self.layout.addWidget(self.log_area, 6, 0, 1, 3)
+        self.layout.addWidget(self.log_area, 7, 0, 1, 3)
 
         self.monitoring = False  # 监测状态
         #self.update_qr_process()
@@ -254,7 +268,70 @@ class MainWindow(QMainWindow):
         self.collected_qr4 = {}
         self.screenshot_timer = QTimer()
         self.screenshot_timer.timeout.connect(self.capture_screen)
+
+        # 添加剪贴板同步 
+        self.write_clipboard_timer = QTimer()
+        self.write_clipboard_timer.timeout.connect(self.write_clipboard)
+
+        # 初始化最近收集item队列 
+        self.timed_deque = TimedDeque(max_age_seconds=30)
+
+        # 状态栏
+        self.status_bar = self.statusBar()
+        self.status_bar.addPermanentWidget(self.monitor_qr_process_label)
+        self.status_bar.addPermanentWidget(self.monitor_qr_range_label)
+        self.speed_label = QLabel("采集速度: 0 pices/s")
+        self.status_bar.addPermanentWidget(self.speed_label)
+
+        self.send_feedback_label = QLabel("")
+        self.status_bar.addPermanentWidget(self.send_feedback_label)
+        self.status_bar_progress_label = QLabel("")
+        self.status_bar.addPermanentWidget(self.status_bar_progress_label)
+
+        # 速度计算
+        self.last_second_item_count = 0
+        self.speed_update_timer = QTimer()
+        self.speed_update_timer.timeout.connect(self.update_speed_status)
+
+
         
+        
+    def update_speed_status(self):
+        speed = self.qr_process - self.last_second_item_count
+        self.last_second_item_count = self.qr_process 
+        self.speed_label.setText(f"采集速度: {speed} pices/s")
+        self.log_message(f"采集速度: {speed} pices/s {self.last_second_item_count}")
+
+    # 将以扫描内容写入剪贴板 
+    def write_clipboard(self): 
+        # pack the data into a dict 
+        packed_data = {}
+        # packed_data["qr1"] = self.collected_qr1
+        # packed_data["qr2"] = self.collected_qr2
+        # packed_data["qr3"] = self.collected_qr3
+        # packed_data["qr4"] = self.collected_qr4
+        packed_data["qr"] = self.timed_deque.get_items()
+
+        total = self.total_segments
+        pct = 0.0
+        if total > 0:
+            pct = self.qr_process / float(total)
+            self.status_bar_progress_label.setText(f"已扫描条数: {self.qr_process} / {total}, 百分比: {pct:.2%}")
+        else:
+            self.status_bar_progress_label.setText(f"已扫描条数: {self.qr_process} / {total}")
+
+        if pct > 0.97:
+            self.log_message("开始收集未扫描到的索引通知sender")
+            packed_data["un_qr1"] = self.uncollected_ranges(0, self.collected_qr1)
+            packed_data["un_qr2"] = self.uncollected_ranges(1, self.collected_qr2)
+            packed_data["un_qr3"] = self.uncollected_ranges(2, self.collected_qr3)
+            packed_data["un_qr4"] = self.uncollected_ranges(3, self.collected_qr4)
+            self.send_feedback_label.setText("开始收集未扫描到的索引通知sender")
+
+        data = json.dumps(packed_data)
+        pyperclip.copy("QRTRANSFER:" + data)
+        self.log_message(f"已将数据写入剪贴板: {data}")
+
     # 更新二维码识别进度 
     def update_qr_process(self):  
         if (self.qr_process >= 0): 
@@ -407,6 +484,7 @@ class MainWindow(QMainWindow):
         self.qr2_process = 0
         self.qr3_process = 0
         self.qr4_process = 0
+        self.last_second_item_count = 0
         self.total_segments = self.segment_count_input.value()
         self.qr1_total = self.total_segments
 
@@ -426,10 +504,20 @@ class MainWindow(QMainWindow):
         interval = int(1000 / self.frame_rate_input.value())
         self.screenshot_timer.setInterval(interval)
         self.screenshot_timer.start()
+
+        # 启动速度计算定时器
+        self.speed_update_timer.setInterval(1000)  # 每秒更新
+        self.speed_update_timer.start()  # 每秒更新
         
         # 禁用控件
         self.toggle_controls(False)
         self.log_message("开始识别...")
+
+        self.write_clipboard_timer.setInterval(5000)  # 每秒写入一次剪贴板
+        self.write_clipboard_timer.start()
+        self.log_message("启动剪贴板同步...")
+
+
 
     def on_error_occurred(self, msg): 
         self.log_message(msg)
@@ -490,6 +578,8 @@ class MainWindow(QMainWindow):
             progress = len(self.collected_data)
             self.qr_process = progress
             
+            self.timed_deque.append(index)  # 添加到最近收集的队列
+
             # 根据index判断属于哪个区间，更新对应的进度
             if self.chunk_ranges:
                 for i, (start, end) in enumerate(self.chunk_ranges):
@@ -518,15 +608,21 @@ class MainWindow(QMainWindow):
     def complete_recognition(self):
         """完成识别处理"""
         self.screenshot_timer.stop()
+        self.write_clipboard_timer.stop()
+        self.speed_update_timer.stop()
         self.recognition_thread.stop()
         self.recognition_thread.wait()
         
         # 处理收集到的数据
         self.process_collected_data()
+
         
         # 恢复控件状态
         self.toggle_controls(True)
         self.log_message("识别完成")
+        self.status_bar_progress_label.setText(f"已扫描条数: {self.qr_process} / {self.qr_process}, 百分比: 100%")
+        self.send_feedback_label.setText("")
+
 
     def process_collected_data(self):
         """处理收集到的数据片段并写入文件"""
@@ -583,6 +679,8 @@ class MainWindow(QMainWindow):
     def stop_recognition(self):
         """停止识别"""
         self.screenshot_timer.stop()
+        self.write_clipboard_timer.stop()
+        self.speed_update_timer.stop()
         self.collected_data.clear()
         self.collected_qr1.clear()
         self.collected_qr2.clear()
@@ -602,6 +700,16 @@ class MainWindow(QMainWindow):
         else:
             self.screenshot_timer.start()
             self.pause_button.setText("暂停")
+
+        if self.write_clipboard_timer.isActive(): 
+            self.write_clipboard_timer.stop()
+        else: 
+            self.write_clipboard_timer.start()
+
+        if self.speed_update_timer.isActive(): 
+            self.speed_update_timer.stop()
+        else: 
+            self.speed_update_timer.start()
 
     def monitor_qr_area(self):
         self.log_area.append("请框选二维码区域...")
@@ -715,6 +823,24 @@ class MainWindow(QMainWindow):
             # 暂停一段时间以避免过于频繁的截屏
             cv2.waitKey(1000)  # 每秒截取一次
 
+    # 收集未扫描到的索引 
+    def uncollected_ranges(self, range_idx, collected_ranges): 
+        uncollected_ranges = []
+        if range_idx >= len(self.chunk_ranges):
+            return uncollected_ranges
+        chunk_ranges = self.chunk_ranges[range_idx]
+        if (not collected_ranges) or (not chunk_ranges):
+            return uncollected_ranges
+        if (len(collected_ranges) == 0) or (len(chunk_ranges) == 0):
+            return uncollected_ranges
+
+        start_idx = chunk_ranges[0]
+        end_idx = chunk_ranges[1]
+        for i in range(start_idx, end_idx): 
+            if i not in collected_ranges: 
+               uncollected_ranges.append(i)
+        return uncollected_ranges
+
     def show_qr1_process_detail(self):
         self.show_process_detail_dialog("qr1", 0, self.collected_qr1)
     def show_qr2_process_detail(self):
@@ -724,7 +850,7 @@ class MainWindow(QMainWindow):
     def show_qr4_process_detail(self):
         self.show_process_detail_dialog("qr4", 3, self.collected_qr4)
     def show_process_detail_dialog(self, title, range_idx, collected_ranges):
-        self.log_message(f"显示进度详情 {range_idx} {collected_ranges}")
+        self.log_message(f"显示进度详情 {range_idx} ")
         if range_idx >= len(self.chunk_ranges):
             self.log_message("不存在的chunk_range")
             return 

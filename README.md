@@ -23,7 +23,7 @@
 pip install pyqt5 pyzbar qrcode
 pip install pyautogui
 pip install opencv-python==4.5.5.64
-pip install pillow==9.3.0
+pip install pillow==9.3
 
 On macOS and Linux, you need to run python3:
 

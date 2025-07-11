@@ -19,3 +19,4 @@ pyzbar==0.1.9
 qrcode==7.4.2
 rubicon-objc==0.4.9
 typing_extensions==4.12.2
+pyperclip==1.9.0
