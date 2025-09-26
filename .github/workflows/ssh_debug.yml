@@ -18,5 +18,5 @@ jobs:
       # 安装 tmate 以提供 SSH 访问
       - name: Setup tmate session
         uses: mxschmitt/action-tmate@v3
-        with:
-          limit-access-to-actor: true # 限制只有触发 Workflow 的用户可以访问
+        #with:
+        #  limit-access-to-actor: true # 限制只有触发 Workflow 的用户可以访问
