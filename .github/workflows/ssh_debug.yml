@@ -1,0 +1,22 @@
+name: SSH Debugging Workflow
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # 允许手动触发 Workflow
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 检出代码
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 安装 tmate 以提供 SSH 访问
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+        with:
+          limit-access-to-actor: true # 限制只有触发 Workflow 的用户可以访问
